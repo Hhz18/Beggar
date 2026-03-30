@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Noto_Sans_SC, Noto_Sans_JP, Noto_Sans_KR, Noto_Sans_TH } from "next/font/google";
+import { Geist, Geist_Mono, Noto_Sans_SC, Noto_Sans_JP, Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
