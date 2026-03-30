@@ -19,21 +19,18 @@ const geistMono = Geist_Mono({
 
 const notoSansSC = Noto_Sans_SC({
   variable: "--font-noto-sans-sc",
-  subsets: ["chinese-simplified"],
   display: "swap",
   weight: ["400", "500", "600", "700"],
 });
 
 const notoSansJP = Noto_Sans_JP({
   variable: "--font-noto-sans-jp",
-  subsets: ["japanese"],
   display: "swap",
   weight: ["400", "500", "600", "700"],
 });
 
 const notoSansKR = Noto_Sans_KR({
   variable: "--font-noto-sans-kr",
-  subsets: ["korean"],
   display: "swap",
   weight: ["400", "500", "600", "700"],
 });
