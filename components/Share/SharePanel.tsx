@@ -36,7 +36,7 @@ function SharePanel({ isOpen, onClose, shareData }: SharePanelProps) {
 
   const defaultUrl = shareData?.url || (typeof window !== 'undefined' ? window.location.href : '');
   const defaultTitle = shareData?.title || '赛博乞讨站';
-  const defaultText = supportData?.text || '一个赛博朋克风格的乞讨网站';
+  const defaultText = shareData?.text || '一个赛博朋克风格的乞讨网站';
 
   const socialLinks = getSocialShareLinks(defaultUrl, defaultTitle, defaultText);
   const qrCodeUrl = generateQRCode(defaultUrl);
