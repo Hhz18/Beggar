@@ -3,7 +3,7 @@
  * Payment Request API Hook
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { paymentEngine, PaymentMethodData, PaymentItem, PaymentOptions, PaymentResult } from '@/lib/payment/paymentEngine';
 
 export interface UsePaymentRequestResult {
@@ -18,11 +18,16 @@ export interface UsePaymentRequestResult {
 }
 
 export function usePaymentRequest(): UsePaymentRequestResult {
-  const [isSupported] = useState(paymentEngine.isSupported());
+  const [isSupported, setIsSupported] = useState(false);
   const [canMakePayment, setCanMakePayment] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Check support only on client side to avoid hydration mismatch
+  useEffect(() => {
+    setIsSupported(paymentEngine.isSupported());
+  }, []);
 
   const paymentMethodsRef = useRef<PaymentMethodData[]>(paymentEngine.getSupportedPaymentMethods());
 
