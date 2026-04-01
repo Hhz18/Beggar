@@ -1,309 +1,386 @@
-import { DonationRecord, DonationStats, Message, CustomQuote } from '@/types';
+/**
+ * Storage Layer - Refactored with Generic Wrapper
+ *
+ * @description
+ * All storage operations now use StorageManager for consistency.
+ * This eliminates code duplication and provides better error handling.
+ *
+ * @module lib/storage
+ */
 
-const STORAGE_KEYS = {
+import { StorageManager } from './storage/core';
+import { generateDonationId, generateMessageId, generateQuoteId } from './utils/idGenerator';
+import type { DonationRecord, DonationStats, Message, CustomQuote } from '@/types';
+
+// ============ Storage Configuration ============
+
+/**
+ * Default stats value
+ */
+const DEFAULT_STATS: DonationStats = {
+  totalDonations: 0,
+  totalAmount: 0,
+  donationCount: 0,
+  wechatCount: 0,
+  alipayCount: 0,
+  lastDonation: '',
+  firstDonation: '',
+};
+
+/**
+ * Storage configurations
+ */
+const STORAGE_CONFIGS = {
   DONATION_RECORDS: 'cyber_beggar_donations',
   DONATION_STATS: 'cyber_beggar_stats',
   LAST_VISIT: 'cyber_beggar_last_visit',
   MESSAGES: 'cyber_beggar_messages',
   CUSTOM_QUOTES: 'cyber_beggar_custom_quotes',
-};
+} as const;
 
-// 获取所有施舍记录
+// Create storage managers with caching enabled
+const donationsStorage = new StorageManager<DonationRecord[]>({
+  key: STORAGE_CONFIGS.DONATION_RECORDS,
+  defaultValue: [],
+  enableCache: true,
+});
+
+const statsStorage = new StorageManager<DonationStats>({
+  key: STORAGE_CONFIGS.DONATION_STATS,
+  defaultValue: DEFAULT_STATS,
+  enableCache: true,
+});
+
+const lastVisitStorage = new StorageManager<string>({
+  key: STORAGE_CONFIGS.LAST_VISIT,
+  defaultValue: '',
+  enableCache: false,
+});
+
+const messagesStorage = new StorageManager<Message[]>({
+  key: STORAGE_CONFIGS.MESSAGES,
+  defaultValue: [],
+  enableCache: true,
+});
+
+const quotesStorage = new StorageManager<CustomQuote[]>({
+  key: STORAGE_CONFIGS.CUSTOM_QUOTES,
+  defaultValue: [],
+  enableCache: true,
+});
+
+// ============ Donation Records ============
+
+/**
+ * Retrieves all donation records from localStorage.
+ *
+ * @returns {DonationRecord[]} Array of donation records, empty array if none exist
+ *
+ * @example
+ * ```typescript
+ * const records = getDonationRecords();
+ * console.log(`Found ${records.length} donations`);
+ * ```
+ */
 export function getDonationRecords(): DonationRecord[] {
-  if (typeof window === 'undefined') return [];
-
-  try {
-    const data = localStorage.getItem(STORAGE_KEYS.DONATION_RECORDS);
-    return data ? JSON.parse(data) : [];
-  } catch (error) {
-    console.error('Error reading donation records:', error);
-    return [];
-  }
+  return donationsStorage.get();
 }
 
-// 保存施舍记录
-export function saveDonationRecord(record: DonationRecord): void {
-  if (typeof window === 'undefined') return;
+/**
+ * Saves a new donation record to localStorage.
+ *
+ * @param {Omit<DonationRecord, 'id'>} record - Donation record without ID (will be auto-generated)
+ * @returns {DonationRecord} Complete donation record with generated ID
+ *
+ * @example
+ * ```typescript
+ * const newRecord = saveDonationRecord({
+ *   amount: 100,
+ *   paymentMethod: 'wechat',
+ *   timestamp: Date.now(),
+ *   date: new Date().toLocaleString(),
+ * });
+ * ```
+ */
+export function saveDonationRecord(record: Omit<DonationRecord, 'id'>): DonationRecord {
+  const newRecord: DonationRecord = {
+    ...record,
+    id: generateDonationId(),
+  };
 
-  try {
-    const records = getDonationRecords();
-    records.push(record);
-    localStorage.setItem(STORAGE_KEYS.DONATION_RECORDS, JSON.stringify(records));
+  donationsStorage.update(records => [...records, newRecord]);
+  updateStats(donationsStorage.get());
 
-    // 更新统计数据
-    updateStats(records);
-  } catch (error) {
-    console.error('Error saving donation record:', error);
-  }
+  return newRecord;
 }
 
-// 删除施舍记录
+/**
+ * Deletes a donation record by ID.
+ *
+ * @param {string} id - The ID of the donation record to delete
+ *
+ * @example
+ * ```typescript
+ * deleteDonationRecord('donation_abc123');
+ * ```
+ */
 export function deleteDonationRecord(id: string): void {
-  if (typeof window === 'undefined') return;
-
-  try {
-    const records = getDonationRecords().filter(r => r.id !== id);
-    localStorage.setItem(STORAGE_KEYS.DONATION_RECORDS, JSON.stringify(records));
-
-    // 更新统计数据
-    updateStats(records);
-  } catch (error) {
-    console.error('Error deleting donation record:', error);
-  }
+  donationsStorage.update(records => records.filter(r => r.id !== id));
+  updateStats(donationsStorage.get());
 }
 
-// 清空所有记录
+/**
+ * Clears all donation records and stats.
+ *
+ * @example
+ * ```typescript
+ * clearAllRecords();
+ * ```
+ */
 export function clearAllRecords(): void {
-  if (typeof window === 'undefined') return;
-
-  try {
-    localStorage.removeItem(STORAGE_KEYS.DONATION_RECORDS);
-    localStorage.removeItem(STORAGE_KEYS.DONATION_STATS);
-  } catch (error) {
-    console.error('Error clearing records:', error);
-  }
+  donationsStorage.clear();
+  statsStorage.clear();
 }
 
-// 获取统计数据
+// ============ Statistics ============
+
+/**
+ * Retrieves aggregated donation statistics.
+ *
+ * @returns {DonationStats} Current donation statistics
+ *
+ * @example
+ * ```typescript
+ * const stats = getDonationStats();
+ * console.log(`Total: ${stats.totalAmount} from ${stats.totalDonations} donations`);
+ * ```
+ */
 export function getDonationStats(): DonationStats {
-  if (typeof window === 'undefined') {
-    return {
-      totalDonations: 0,
-      totalAmount: 0,
-      donationCount: 0,
-      wechatCount: 0,
-      alipayCount: 0,
-      lastDonation: '',
-      firstDonation: '',
-    };
-  }
-
-  try {
-    const data = localStorage.getItem(STORAGE_KEYS.DONATION_STATS);
-    return data ? JSON.parse(data) : {
-      totalDonations: 0,
-      totalAmount: 0,
-      donationCount: 0,
-      wechatCount: 0,
-      alipayCount: 0,
-      lastDonation: '',
-      firstDonation: '',
-    };
-  } catch (error) {
-    console.error('Error reading donation stats:', error);
-    return {
-      totalDonations: 0,
-      totalAmount: 0,
-      donationCount: 0,
-      wechatCount: 0,
-      alipayCount: 0,
-      lastDonation: '',
-      firstDonation: '',
-    };
-  }
+  return statsStorage.get();
 }
 
-// 更新统计数据
+/**
+ * Updates statistics based on current donation records.
+ *
+ * @param {DonationRecord[]} records - Current donation records
+ * @private
+ */
 function updateStats(records: DonationRecord[]): void {
-  if (typeof window === 'undefined') return;
-
-  try {
-    const stats: DonationStats = {
-      totalDonations: records.length,
-      totalAmount: records.reduce((sum, r) => sum + r.amount, 0),
-      donationCount: records.length,
-      wechatCount: records.filter(r => r.paymentMethod === 'wechat').length,
-      alipayCount: records.filter(r => r.paymentMethod === 'alipay').length,
-      lastDonation: records.length > 0
-        ? new Date(records[records.length - 1].timestamp).toLocaleString('zh-CN')
-        : '',
-      firstDonation: records.length > 0
-        ? new Date(records[0].timestamp).toLocaleString('zh-CN')
-        : '',
-    };
-
-    localStorage.setItem(STORAGE_KEYS.DONATION_STATS, JSON.stringify(stats));
-  } catch (error) {
-    console.error('Error updating stats:', error);
+  if (records.length === 0) {
+    statsStorage.set(DEFAULT_STATS);
+    return;
   }
+
+  const stats: DonationStats = {
+    totalDonations: records.length,
+    totalAmount: records.reduce((sum, r) => sum + r.amount, 0),
+    donationCount: records.length,
+    wechatCount: records.filter(r => r.paymentMethod === 'wechat').length,
+    alipayCount: records.filter(r => r.paymentMethod === 'alipay').length,
+    lastDonation: new Date(records[records.length - 1].timestamp).toLocaleString('zh-CN'),
+    firstDonation: new Date(records[0].timestamp).toLocaleString('zh-CN'),
+  };
+
+  statsStorage.set(stats);
 }
 
-// 获取最后访问时间
-export function getLastVisit(): string {
-  if (typeof window === 'undefined') return '';
-
-  try {
-    return localStorage.getItem(STORAGE_KEYS.LAST_VISIT) || '';
-  } catch (error) {
-    return '';
-  }
-}
-
-// 更新最后访问时间
-export function updateLastVisit(): void {
-  if (typeof window === 'undefined') return;
-
-  try {
-    localStorage.setItem(STORAGE_KEYS.LAST_VISIT, new Date().toISOString());
-  } catch (error) {
-    console.error('Error updating last visit:', error);
-  }
-}
-
-// 初始化统计数据（从记录重建）
+/**
+ * Initializes statistics from existing donation records.
+ * Only rebuilds stats if they don't already exist.
+ *
+ * @example
+ * ```typescript
+ * initializeStats(); // Call on app startup
+ * ```
+ */
 export function initializeStats(): void {
-  if (typeof window === 'undefined') return;
+  const records = getDonationRecords();
+  const existingStats = localStorage.getItem(STORAGE_CONFIGS.DONATION_STATS);
 
-  try {
-    const records = getDonationRecords();
-    const existingStats = localStorage.getItem(STORAGE_KEYS.DONATION_STATS);
-
-    // 如果没有统计数据但有记录，重建统计
-    if (!existingStats && records.length > 0) {
-      updateStats(records);
-    }
-  } catch (error) {
-    console.error('Error initializing stats:', error);
+  if (!existingStats && records.length > 0) {
+    updateStats(records);
   }
 }
 
-// ============ 留言相关功能 ============
+// ============ Last Visit ============
 
-// 获取所有留言
+/**
+ * Retrieves the last visit timestamp.
+ *
+ * @returns {string} ISO timestamp of last visit, empty string if none
+ *
+ * @example
+ * ```typescript
+ * const lastVisit = getLastVisit();
+ * console.log(`Last visited: ${lastVisit}`);
+ * ```
+ */
+export function getLastVisit(): string {
+  return lastVisitStorage.get();
+}
+
+/**
+ * Updates the last visit timestamp to current time.
+ *
+ * @example
+ * ```typescript
+ * updateLastVisit(); // Call on app startup
+ * ```
+ */
+export function updateLastVisit(): void {
+  lastVisitStorage.set(new Date().toISOString());
+}
+
+// ============ Messages ============
+
+/**
+ * Retrieves all messages from localStorage.
+ *
+ * @returns {Message[]} Array of all messages
+ *
+ * @example
+ * ```typescript
+ * const messages = getMessages();
+ * console.log(`Found ${messages.length} messages`);
+ * ```
+ */
 export function getMessages(): Message[] {
-  if (typeof window === 'undefined') return [];
-
-  try {
-    const data = localStorage.getItem(STORAGE_KEYS.MESSAGES);
-    return data ? JSON.parse(data) : [];
-  } catch (error) {
-    console.error('Error reading messages:', error);
-    return [];
-  }
+  return messagesStorage.get();
 }
 
-// 保存留言
+/**
+ * Saves a new message to localStorage.
+ *
+ * @param {Omit<Message, 'id' | 'timestamp' | 'date' | 'likes'>} message - Message without auto-generated fields
+ * @returns {Message} Complete message with generated ID and timestamps
+ *
+ * @example
+ * ```typescript
+ * const newMessage = saveMessage({
+ *   content: 'Great project!',
+ *   nickname: 'John',
+ * });
+ * ```
+ */
 export function saveMessage(message: Omit<Message, 'id' | 'timestamp' | 'date' | 'likes'>): Message {
-  if (typeof window === 'undefined') {
-    return {} as Message;
-  }
+  const newMessage: Message = {
+    ...message,
+    id: generateMessageId(),
+    timestamp: Date.now(),
+    date: new Date().toISOString(),
+    likes: 0,
+  };
 
-  try {
-    const messages = getMessages();
-    const newMessage: Message = {
-      ...message,
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: Date.now(),
-      date: new Date().toISOString(),
-      likes: 0,
-    };
-
-    messages.push(newMessage);
-    localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messages));
-
-    return newMessage;
-  } catch (error) {
-    console.error('Error saving message:', error);
-    throw error;
-  }
+  messagesStorage.update(messages => [...messages, newMessage]);
+  return newMessage;
 }
 
-// 点赞留言
+/**
+ * Increments the like count for a message.
+ *
+ * @param {string} messageId - The ID of the message to like
+ *
+ * @example
+ * ```typescript
+ * likeMessage('msg_abc123');
+ * ```
+ */
 export function likeMessage(messageId: string): void {
-  if (typeof window === 'undefined') return;
-
-  try {
-    const messages = getMessages();
-    const messageIndex = messages.findIndex(m => m.id === messageId);
-
-    if (messageIndex !== -1) {
-      messages[messageIndex].likes += 1;
-      localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messages));
-    }
-  } catch (error) {
-    console.error('Error liking message:', error);
-  }
+  messagesStorage.update(messages =>
+    messages.map(m =>
+      m.id === messageId ? { ...m, likes: m.likes + 1 } : m
+    )
+  );
 }
 
-// 删除留言
+/**
+ * Deletes a message by ID.
+ *
+ * @param {string} messageId - The ID of the message to delete
+ *
+ * @example
+ * ```typescript
+ * deleteMessage('msg_abc123');
+ * ```
+ */
 export function deleteMessage(messageId: string): void {
-  if (typeof window === 'undefined') return;
-
-  try {
-    const messages = getMessages().filter(m => m.id !== messageId);
-    localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messages));
-  } catch (error) {
-    console.error('Error deleting message:', error);
-  }
+  messagesStorage.update(messages => messages.filter(m => m.id !== messageId));
 }
 
-// ============ 自定义语录相关功能 ============
+// ============ Custom Quotes ============
 
-// 获取所有自定义语录
+/**
+ * Retrieves all custom quotes from localStorage.
+ *
+ * @returns {CustomQuote[]} Array of all custom quotes
+ *
+ * @example
+ * ```typescript
+ * const quotes = getCustomQuotes();
+ * console.log(`Found ${quotes.length} custom quotes`);
+ * ```
+ */
 export function getCustomQuotes(): CustomQuote[] {
-  if (typeof window === 'undefined') return [];
-
-  try {
-    const data = localStorage.getItem(STORAGE_KEYS.CUSTOM_QUOTES);
-    return data ? JSON.parse(data) : [];
-  } catch (error) {
-    console.error('Error reading custom quotes:', error);
-    return [];
-  }
+  return quotesStorage.get();
 }
 
-// 保存自定义语录
+/**
+ * Saves a new custom quote to localStorage.
+ *
+ * @param {Omit<CustomQuote, 'id' | 'timestamp'>} quote - Quote without auto-generated fields
+ * @returns {CustomQuote} Complete quote with generated ID and timestamp
+ *
+ * @example
+ * ```typescript
+ * const newQuote = saveCustomQuote({
+ *   text: 'Keep up the good work!',
+ *   category: 'funny',
+ * });
+ * ```
+ */
 export function saveCustomQuote(quote: Omit<CustomQuote, 'id' | 'timestamp'>): CustomQuote {
-  if (typeof window === 'undefined') {
-    return {} as CustomQuote;
-  }
+  const newQuote: CustomQuote = {
+    ...quote,
+    id: generateQuoteId(),
+    timestamp: Date.now(),
+  };
 
-  try {
-    const quotes = getCustomQuotes();
-    const newQuote: CustomQuote = {
-      ...quote,
-      id: `custom_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: Date.now(),
-    };
-
-    quotes.push(newQuote);
-    localStorage.setItem(STORAGE_KEYS.CUSTOM_QUOTES, JSON.stringify(quotes));
-
-    return newQuote;
-  } catch (error) {
-    console.error('Error saving custom quote:', error);
-    throw error;
-  }
+  quotesStorage.update(quotes => [...quotes, newQuote]);
+  return newQuote;
 }
 
-// 删除自定义语录
+/**
+ * Deletes a custom quote by ID.
+ *
+ * @param {string} quoteId - The ID of the quote to delete
+ *
+ * @example
+ * ```typescript
+ * deleteCustomQuote('custom_abc123');
+ * ```
+ */
 export function deleteCustomQuote(quoteId: string): void {
-  if (typeof window === 'undefined') return;
-
-  try {
-    const quotes = getCustomQuotes().filter(q => q.id !== quoteId);
-    localStorage.setItem(STORAGE_KEYS.CUSTOM_QUOTES, JSON.stringify(quotes));
-  } catch (error) {
-    console.error('Error deleting custom quote:', error);
-  }
+  quotesStorage.update(quotes => quotes.filter(q => q.id !== quoteId));
 }
 
-// 更新自定义语录
-export function updateCustomQuote(quoteId: string, updates: Partial<Omit<CustomQuote, 'id' | 'timestamp'>>): void {
-  if (typeof window === 'undefined') return;
-
-  try {
-    const quotes = getCustomQuotes();
-    const quoteIndex = quotes.findIndex(q => q.id === quoteId);
-
-    if (quoteIndex !== -1) {
-      quotes[quoteIndex] = {
-        ...quotes[quoteIndex],
-        ...updates,
-      };
-      localStorage.setItem(STORAGE_KEYS.CUSTOM_QUOTES, JSON.stringify(quotes));
-    }
-  } catch (error) {
-    console.error('Error updating custom quote:', error);
-  }
+/**
+ * Updates a custom quote with new values.
+ *
+ * @param {string} quoteId - The ID of the quote to update
+ * @param {Partial<Omit<CustomQuote, 'id' | 'timestamp'>>} updates - Fields to update
+ *
+ * @example
+ * ```typescript
+ * updateCustomQuote('custom_abc123', { text: 'Updated text' });
+ * ```
+ */
+export function updateCustomQuote(
+  quoteId: string,
+  updates: Partial<Omit<CustomQuote, 'id' | 'timestamp'>>
+): void {
+  quotesStorage.update(quotes =>
+    quotes.map(q =>
+      q.id === quoteId ? { ...q, ...updates } : q
+    )
+  );
 }

@@ -7,6 +7,16 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { translationManager, Locale, Namespace } from '@/lib/i18n';
+import { StorageManager } from '@/lib/storage/core';
+
+/**
+ * Storage manager for locale preference
+ * Handles persistence of user's selected language
+ */
+const localeStorage = new StorageManager<Locale>({
+  key: 'locale',
+  defaultValue: 'zh-CN',
+});
 
 interface I18nContextType {
   locale: Locale;
@@ -30,12 +40,17 @@ export function I18nProvider({ children, initialLocale = 'zh-CN' }: I18nProvider
 
   useEffect(() => {
     setMounted(true);
-    // Try to get locale from localStorage after mounting
-    const saved = localStorage.getItem('locale') as Locale;
-    if (saved && translationManager.getAvailableLocales().includes(saved)) {
-      translationManager.setLocale(saved);
-      setLocale(saved);
-    } else {
+    // Try to get locale from storage after mounting
+    try {
+      const saved = localeStorage.get();
+      if (saved && translationManager.getAvailableLocales().includes(saved)) {
+        translationManager.setLocale(saved);
+        setLocale(saved);
+      } else {
+        translationManager.setLocale(initialLocale);
+      }
+    } catch (error) {
+      console.error('Failed to load locale from storage:', error);
       translationManager.setLocale(initialLocale);
     }
   }, [initialLocale]);
@@ -43,9 +58,16 @@ export function I18nProvider({ children, initialLocale = 'zh-CN' }: I18nProvider
   const changeLocale = useCallback((newLocale: Locale) => {
     translationManager.setLocale(newLocale);
     setLocale(newLocale);
+
+    // Save to storage
+    try {
+      localeStorage.set(newLocale);
+    } catch (error) {
+      console.error('Failed to save locale to storage:', error);
+    }
+
+    // Dispatch event for non-react components
     if (typeof window !== 'undefined') {
-      localStorage.setItem('locale', newLocale);
-      // Dispatch event for non-react components
       window.dispatchEvent(new CustomEvent('localechange', { detail: { locale: newLocale } }));
     }
   }, []);
@@ -56,10 +78,10 @@ export function I18nProvider({ children, initialLocale = 'zh-CN' }: I18nProvider
     values?: Record<string, string | number>
   ) => {
     if (values) {
-      return translationManager.interpolate(key, values, namespace, locale);
+      return translationManager.interpolate(key, values, namespace);
     }
-    return translationManager.t(key, namespace, locale);
-  }, [locale]);
+    return translationManager.t(key, namespace);
+  }, []);
 
   const formatDate = useCallback((date: Date, localeOverride?: Locale) => {
     return translationManager.formatDate(date, localeOverride || locale);

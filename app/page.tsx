@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import Image from "next/image";
 import PixelCat from "@/components/Cat/PixelCat";
 import ThankYouModal from "@/components/Feedback/ThankYouModal";
@@ -13,111 +13,80 @@ import ThemeSwitcher from "@/components/Theme/ThemeSwitcher";
 import LanguageSwitcher from "@/components/I18n/LanguageSwitcherClient";
 import FontSwitcher from "@/components/I18n/FontSwitcher";
 import QuickPaymentButton from "@/components/Payment/QuickPaymentButton";
-import { CatEmotion, PaymentMethod } from "@/types";
-import { saveDonationRecord, initializeStats, updateLastVisit } from "@/lib/storage";
+import { initializeStats, updateLastVisit } from "@/lib/storage";
 import { useTimeGreeting } from "@/hooks";
 import { useI18n } from "@/contexts/I18nContext";
+import { useAppState } from "@/hooks/useAppState";
+import { useDonationHandler } from "@/hooks/useDonationHandler";
+import { usePaymentMethods } from "@/hooks/usePaymentMethods";
 
 export default function Home() {
   const { t, locale } = useI18n();
-  const [selectedQr, setSelectedQr] = useState<PaymentMethod | null>(null);
-  const [catEmotion, setCatEmotion] = useState<CatEmotion>("normal");
-  const [showThankYou, setShowThankYou] = useState(false);
-  const [showMessageWall, setShowMessageWall] = useState(false);
-  const [showCustomQuotes, setShowCustomQuotes] = useState(false);
-  const [showMobileStats, setShowMobileStats] = useState(false);
-  const [lastDonation, setLastDonation] = useState<{ amount: number; method: string } | null>(null);
-
-  // 使用时间段问候Hook
   const timeGreeting = useTimeGreeting();
+  const { state, actions } = useAppState();
+  const { handleDonate } = useDonationHandler();
+  const paymentMethods = usePaymentMethods();
 
-  const paymentMethods = [
-    {
-      id: "wechat" as PaymentMethod,
-      name: t('payment.wechat'),
-      color: "#a8cda2",
-      qrCode: "/vx.jpg",
-    },
-    {
-      id: "alipay" as PaymentMethod,
-      name: t('payment.alipay'),
-      color: "#d0d3b2",
-      qrCode: "/zfb.jpg",
-    },
-  ];
-
+  // Initialize on mount (only runs once)
   useEffect(() => {
-    // 初始化统计数据
     initializeStats();
     updateLastVisit();
 
-    // 设置小猫的初始情绪为时间段对应的情绪
-    setCatEmotion(timeGreeting.emotion);
-  }, []);
+    // Set initial cat emotion based on time
+    actions.setCatEmotion(timeGreeting.emotion);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - only run on mount
 
-  const handleDonate = (amount: number, methodId: PaymentMethod) => {
-    // 保存施舍记录
-    const record = {
-      id: Date.now().toString(),
-      amount,
-      paymentMethod: methodId,
-      timestamp: Date.now(),
-      date: new Date().toLocaleString(locale),
-    };
-    saveDonationRecord(record);
+  // Memoize current date display
+  const currentDateDisplay = useMemo(
+    () => new Date().toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
+    []
+  );
 
-    // 设置小猫情绪
-    const emotions: CatEmotion[] = ['happy', 'excited'];
-    const randomEmotion = emotions[Math.floor(Math.random() * emotions.length)];
-    setCatEmotion(randomEmotion);
-
-    // 显示感谢弹窗
-    setLastDonation({
-      amount,
-      method: paymentMethods.find(m => m.id === methodId)?.name || '',
-    });
-    setShowThankYou(true);
-
-    // 3秒后重置小猫情绪
-    setTimeout(() => {
-      setCatEmotion('normal');
-    }, 3000);
-  };
-
-  const handleCloseModal = () => {
-    setShowThankYou(false);
-  };
+  // Memoize footer message based on emotion
+  const footerMessage = useMemo(() => {
+    switch (state.catEmotion) {
+      case 'normal':
+        return timeGreeting.subGreeting;
+      case 'happy':
+        return '( =^･ω･^= ) 喵~ 太感谢了！';
+      case 'excited':
+        return '( =^･ω･^= ) 喵呜~ 感激不尽！';
+      default:
+        return timeGreeting.subGreeting;
+    }
+  }, [state.catEmotion, timeGreeting.subGreeting]);
 
   return (
     <div className="min-h-screen bg-[#ebf1d6]">
-        {/* 动态字体切换器 */}
+        {/* Dynamic Font Switcher */}
         <FontSwitcher />
 
-        {/* 背景留言墙 */}
+        {/* Background Message Wall */}
         <MessageBackground aria-hidden="true" />
 
-      {/* 主容器 */}
+      {/* Main Container */}
       <div className="flex items-start min-h-screen" role="main">
-        {/* 内容区域 */}
+        {/* Content Area */}
         <div className="flex-1 max-w-4xl p-3 md:p-8 pt-6 mx-auto">
-          {/* 移动端顶部栏 */}
+          {/* Mobile Top Bar */}
           <div className="lg:hidden flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <span className="text-xl" role="img" aria-label="时间图标">
                 {timeGreeting.emoji}
               </span>
               <span className="text-xs text-[#5a5a5a] font-pixel">
-                {new Date().toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
+                {currentDateDisplay}
               </span>
             </div>
             <div className="flex items-center gap-2">
               <ThemeSwitcher />
               <LanguageSwitcher />
               <button
-                onClick={() => setShowMobileStats(!showMobileStats)}
+                onClick={actions.toggleMobileStats}
                 className="pixel-button bg-[#d0d3b2] px-3 py-2 text-xs hover:bg-[#a8cda2]"
                 aria-label="切换统计面板"
-                aria-expanded={showMobileStats}
+                aria-expanded={state.showMobileStats}
               >
                 📊
               </button>
@@ -142,18 +111,18 @@ export default function Home() {
             </p>
           </header>
 
-          {/* 像素小猫 */}
+          {/* Pixel Cat */}
           <div className="flex justify-center mb-6 md:mb-12">
             <div className="w-48 md:w-64">
               <PixelCat
-                emotion={catEmotion}
-                onInteractionChange={(emotion) => setCatEmotion(emotion)}
+                emotion={state.catEmotion}
+                onInteractionChange={actions.setCatEmotion}
               />
             </div>
           </div>
 
-          {/* 移动端统计面板 */}
-          {showMobileStats && (
+          {/* Mobile Stats Panel */}
+          {state.showMobileStats && (
             <div className="lg:hidden mb-6">
               <StatsPanel />
             </div>
@@ -216,10 +185,10 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 功能按钮区域 */}
+          {/* Feature Buttons */}
           <div className="grid grid-cols-2 gap-3 md:gap-4 mb-6 md:mb-8" role="region" aria-label="功能按钮">
             <button
-              onClick={() => setShowMessageWall(true)}
+              onClick={actions.showMessageWall}
               className="pixel-button bg-[#d0d3b2] px-4 md:px-6 py-3 text-xs md:text-sm text-[#3d3d3d] hover:bg-[#a8cda2] transition-colors flex flex-col items-center justify-center gap-1 md:gap-2"
               aria-label="打开留言墙"
             >
@@ -227,7 +196,7 @@ export default function Home() {
               <span className="text-xs md:text-sm">{t('home.messageWall')}</span>
             </button>
             <button
-              onClick={() => setShowCustomQuotes(true)}
+              onClick={actions.showCustomQuotes}
               className="pixel-button bg-[#d0d3b2] px-4 md:px-6 py-3 text-xs md:text-sm text-[#3d3d3d] hover:bg-[#a8cda2] transition-colors flex flex-col items-center justify-center gap-1 md:gap-2"
               aria-label="打开自定义语录编辑器"
             >
@@ -236,14 +205,10 @@ export default function Home() {
             </button>
           </div>
 
-          {/* 底部文字 */}
+          {/* Footer */}
           <footer className="text-center mt-8 md:mt-12">
             <p className="text-xs text-[#5a5a5a] animate-blink" role="status" aria-live="polite">
-              {catEmotion === 'normal'
-                ? timeGreeting.subGreeting
-                : catEmotion === 'happy'
-                ? "( =^･ω･^= ) 喵~ 太感谢了！"
-                : "( =^･ω･^= ) 喵呜~ 感激不尽！"}
+              {footerMessage}
             </p>
             <p className="text-xs text-[#5a5a5a] mt-2 md:mt-4">
               Powered by Next.js + Tailwind CSS
@@ -251,7 +216,7 @@ export default function Home() {
           </footer>
         </div>
 
-        {/* 右侧边栏 - 统计面板 */}
+        {/* Right Sidebar - Stats Panel */}
         <aside className="hidden lg:block w-80 flex-shrink-0 bg-[#ebf1d6] p-4 border-l-4 border-[#3d3d3d]" aria-label="统计面板">
           <div className="sticky top-4 space-y-8">
             <ThemeSwitcher />
@@ -261,24 +226,22 @@ export default function Home() {
         </aside>
       </div>
 
-      {/* 感谢弹窗 */}
+      {/* Modals */}
       <ThankYouModal
-        isOpen={showThankYou}
-        onClose={handleCloseModal}
-        amount={lastDonation?.amount}
-        paymentMethod={lastDonation?.method}
+        isOpen={state.showThankYou}
+        onClose={actions.hideThankYou}
+        amount={state.lastDonation?.amount}
+        paymentMethod={state.lastDonation?.method}
       />
 
-      {/* 留言墙 */}
       <MessageWall
-        isOpen={showMessageWall}
-        onClose={() => setShowMessageWall(false)}
+        isOpen={state.showMessageWall}
+        onClose={actions.hideMessageWall}
       />
 
-      {/* 自定义语录编辑器 */}
       <CustomQuoteEditor
-        isOpen={showCustomQuotes}
-        onClose={() => setShowCustomQuotes(false)}
+        isOpen={state.showCustomQuotes}
+        onClose={actions.hideCustomQuotes}
       />
     </div>
   );

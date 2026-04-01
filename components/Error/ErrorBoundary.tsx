@@ -1,6 +1,7 @@
 "use client";
 
 import { Component, ReactNode, memo } from 'react';
+import { logComponentError } from '@/lib/errorHandling';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -36,29 +37,13 @@ class ErrorBoundaryClass extends Component<ErrorBoundaryProps, ErrorBoundaryStat
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
 
-    // 调用自定义错误处理
+    // Call custom error handler if provided
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
     }
 
-    // 将错误信息保存到localStorage以便调试
-    try {
-      const errorLog = {
-        message: error.message,
-        stack: error.stack,
-        componentStack: errorInfo.componentStack,
-        timestamp: new Date().toISOString(),
-      };
-      const logs = JSON.parse(localStorage.getItem('error_logs') || '[]');
-      logs.push(errorLog);
-      // 只保留最近10条错误
-      if (logs.length > 10) {
-        logs.shift();
-      }
-      localStorage.setItem('error_logs', JSON.stringify(logs));
-    } catch (e) {
-      console.error('Failed to save error log:', e);
-    }
+    // Log to centralized error handling system
+    logComponentError(error, errorInfo.componentStack);
   }
 
   handleReset = (): void => {

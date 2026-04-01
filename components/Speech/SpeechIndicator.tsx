@@ -6,6 +6,7 @@
  */
 
 import { memo } from 'react';
+import { motion } from 'framer-motion';
 
 interface SpeechIndicatorProps {
   isListening: boolean;
@@ -41,29 +42,33 @@ function SpeechIndicator({ isListening, transcript, error, className = '' }: Spe
   return (
     <div className={`pixel-border bg-blue-100 p-4 ${className}`}>
       <div className="flex items-center gap-2 mb-3">
-        <span
+        <motion.span
           className="text-xl inline-block"
+          animate={{
             scale: [1, 1.2, 1],
             rotate: [0, 5, -5, 0],
           }}
+          transition={{
             duration: 0.8,
             repeat: Infinity,
             ease: 'easeInOut',
           }}
         >
           🎙️
-        </span>
+        </motion.span>
         <span className="text-sm text-blue-600 font-pixel">正在聆听...</span>
       </div>
 
       {/* 声波动画 */}
       <div className="flex items-end justify-center gap-1 h-8 mb-3">
         {[...Array(8)].map((_, i) => (
-          <div
+          <motion.div
             key={i}
             className="w-1 bg-blue-500"
+            animate={{
               height: [8, 32, 8],
             }}
+            transition={{
               duration: 0.8,
               repeat: Infinity,
               delay: i * 0.1,

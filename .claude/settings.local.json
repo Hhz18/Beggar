@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(find components:*)",
+      "Bash(ls -la ITERATION*.md)",
+      "Bash(cd:*)",
+      "Bash(npm install:*)",
+      "Bash(find app:*)",
+      "Bash(xargs grep:*)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(curl -s -I http://localhost:3000)",
+      "Bash(grep -r \"粉色\\\\|pink\" --include=*.ts --include=*.tsx app components hooks lib types)",
+      "Bash(grep -ri skin --include=*.ts --include=*.tsx .)",
+      "Bash(grep -r \"emotion.*love\\\\|''''love''''\\\\|love\" app components hooks lib types --include=*.ts --include=*.tsx)",
+      "Bash(git remote:*)",
+      "Bash(git commit:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(grep -E \"\\\\.\\(json|mjs|ts\\)$\")"
+    ]
+  }
+}
