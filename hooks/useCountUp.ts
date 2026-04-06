@@ -61,8 +61,8 @@ function useCountUp({
   onComplete,
 }: UseCountUpOptions): number {
   const [count, setCount] = useState(start);
-  const requestRef = useRef<number>();
-  const startTimeRef = useRef<number>();
+  const requestRef = useRef<number>(undefined);
+  const startTimeRef = useRef<number>(undefined);
   const previousEndRef = useRef<number>(end);
 
   useEffect(() => {

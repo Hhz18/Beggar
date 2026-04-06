@@ -55,6 +55,7 @@ export const themes: Record<Theme, ThemeConfig> = {
       emotion: {
         happy: '#a8cda2',
         excited: '#ffd700',
+        love: '#ff6b9d',
         normal: '#d0d3b2',
       },
       payment: {
@@ -80,6 +81,7 @@ export const themes: Record<Theme, ThemeConfig> = {
       emotion: {
         happy: '#4a9eff',
         excited: '#ffd700',
+        love: '#ff6b9d',
         normal: '#7b8eb5',
       },
       payment: {
@@ -109,6 +111,7 @@ export const themes: Record<Theme, ThemeConfig> = {
       emotion: {
         happy: '#b5ffb3',
         excited: '#ffffba',
+        love: '#ff6b9d',
         normal: '#bae1ff',
       },
       payment: {
@@ -134,6 +137,7 @@ export const themes: Record<Theme, ThemeConfig> = {
       emotion: {
         happy: '#00ff9f',
         excited: '#ffff00',
+        love: '#ff6b9d',
         normal: '#00ffff',
       },
       payment: {
