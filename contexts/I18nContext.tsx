@@ -77,10 +77,24 @@ export function I18nProvider({ children, initialLocale = 'zh-CN' }: I18nProvider
     namespace?: Namespace,
     values?: Record<string, string | number>
   ) => {
-    if (values) {
-      return translationManager.interpolate(key, values, namespace);
+    // Support both 'home.title' style keys and 'title' with namespace
+    let actualKey = key;
+    let actualNamespace = namespace || 'home';
+
+    if (key.includes('.')) {
+      const parts = key.split('.');
+      // Check if first part is a valid namespace
+      const validNamespaces: Namespace[] = ['common', 'home', 'donation'];
+      if (validNamespaces.includes(parts[0] as Namespace)) {
+        actualNamespace = parts[0] as Namespace;
+        actualKey = parts.slice(1).join('.');
+      }
     }
-    return translationManager.t(key, namespace);
+
+    if (values) {
+      return translationManager.interpolate(actualKey, values, actualNamespace);
+    }
+    return translationManager.t(actualKey, actualNamespace);
   }, []);
 
   const formatDate = useCallback((date: Date, localeOverride?: Locale) => {
