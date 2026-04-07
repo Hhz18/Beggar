@@ -525,5 +525,5 @@ export function calculateDonationStats(donations: DonationRecord[]): DonationSta
 
 ---
 
-**最后更新**: 2026-04-01
+**最后更新**: 2026-04-07
 **维护者**: Cyber Beggar Team
